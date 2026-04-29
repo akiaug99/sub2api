@@ -117,7 +117,12 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		return
 	}
 
-	sessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
+	sessionHash := ""
+	if parsed.Multipart {
+		sessionHash = h.gatewayService.GenerateSessionHashWithFallback(c, nil, parsed.StickySessionSeed())
+	} else {
+		sessionHash = h.gatewayService.GenerateSessionHash(c, body)
+	}
 
 	maxAccountSwitches := h.maxAccountSwitches
 	switchCount := 0

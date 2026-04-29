@@ -97,7 +97,6 @@ describe('OidcCallbackView', () => {
     })
     window.location.hash = ''
     localStorage.clear()
-    sessionStorage.clear()
   })
 
   it('accepts the legacy fragment token success callback without pending-session exchange', async () => {

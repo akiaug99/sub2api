@@ -264,11 +264,6 @@ import {
   type OAuthTokenResponse,
   type PendingOAuthExchangeResponse
 } from '@/api/auth'
-import {
-  clearAllAffiliateReferralCodes,
-  loadOAuthAffiliateCode,
-  oauthAffiliatePayload
-} from '@/utils/oauthAffiliate'
 
 const route = useRoute()
 const router = useRouter()
@@ -595,7 +590,6 @@ async function finalizeCompletion(completion: PendingOAuthExchangeResponse, redi
   if (getOAuthCompletionKind(completion) === 'bind') {
     const bindRedirect = sanitizeRedirectPath(completion.redirect || '/profile')
     clearPendingAuthSession()
-    clearAllAffiliateReferralCodes()
     appStore.showSuccess(bindSuccessMessage)
     await router.replace(bindRedirect)
     return
@@ -607,7 +601,6 @@ async function finalizeCompletion(completion: PendingOAuthExchangeResponse, redi
 
   persistOAuthTokenContext(completion)
   await authStore.setToken(completion.access_token)
-  clearAllAffiliateReferralCodes()
   appStore.showSuccess(t('auth.loginSuccess'))
   await router.replace(redirect)
 }
@@ -656,20 +649,18 @@ async function handleSubmitInvitation() {
 
   isSubmitting.value = true
   try {
-    const affCode = loadOAuthAffiliateCode()
-    const decision = currentAdoptionDecision()
     const completion: PendingOidcCompletion = legacyPendingOAuthToken.value
       ? (
           await apiClient.post<PendingOidcCompletion>('/auth/oauth/oidc/complete-registration', {
             pending_oauth_token: legacyPendingOAuthToken.value,
             invitation_code: invitationCode.value.trim(),
-            ...oauthAffiliatePayload(affCode),
-            ...serializeAdoptionDecision(decision)
+            ...serializeAdoptionDecision(currentAdoptionDecision())
           })
         ).data
-      : affCode
-        ? await completeOIDCOAuthRegistration(invitationCode.value.trim(), decision, affCode)
-        : await completeOIDCOAuthRegistration(invitationCode.value.trim(), decision)
+      : await completeOIDCOAuthRegistration(
+          invitationCode.value.trim(),
+          currentAdoptionDecision()
+        )
     await finalizePendingAccountResponse(completion)
   } catch (e: unknown) {
     const err = e as { message?: string; response?: { data?: { message?: string } } }
@@ -704,7 +695,6 @@ async function handleCreateAccount(payload: PendingOAuthCreateAccountPayload) {
       password: payload.password,
       verify_code: payload.verifyCode || undefined,
       invitation_code: payload.invitationCode || undefined,
-      ...oauthAffiliatePayload(loadOAuthAffiliateCode()),
       ...serializeAdoptionDecision(currentAdoptionDecision())
     })
     await finalizePendingAccountResponse(data)
@@ -752,7 +742,6 @@ async function handleSubmitTotpChallenge() {
       totp_code: code
     })
     await authStore.setToken(completion.access_token)
-    clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
     await router.replace(redirectTo.value)
   } catch (e: unknown) {
@@ -778,7 +767,6 @@ onMounted(async () => {
     if (legacyLogin) {
       persistOAuthTokenContext(legacyLogin)
       await authStore.setToken(legacyLogin.access_token)
-      clearAllAffiliateReferralCodes()
       appStore.showSuccess(t('auth.loginSuccess'))
       await router.replace(redirect)
       return

@@ -269,9 +269,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 
 	switch action {
 	case redeemActionSkipCompleted:
-		if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
-			return err
-		}
+		s.applyAffiliateRebateForOrder(ctx, o)
 		// Code already created and redeemed — just mark completed
 		return s.markCompleted(ctx, o, "RECHARGE_SUCCESS")
 	case redeemActionCreate:
@@ -285,9 +283,7 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 	if _, err := s.redeemService.Redeem(ctx, o.UserID, o.RechargeCode); err != nil {
 		return fmt.Errorf("redeem balance: %w", err)
 	}
-	if err := s.applyAffiliateRebateForOrder(ctx, o); err != nil {
-		return err
-	}
+	s.applyAffiliateRebateForOrder(ctx, o)
 	return s.markCompleted(ctx, o, "RECHARGE_SUCCESS")
 }
 
@@ -365,12 +361,12 @@ func (s *PaymentService) hasAuditLog(ctx context.Context, orderID int64, action 
 	return c > 0
 }
 
-func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *dbent.PaymentOrder) error {
+func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *dbent.PaymentOrder) {
 	if o == nil || o.OrderType != payment.OrderTypeBalance || o.Amount <= 0 {
-		return nil
+		return
 	}
 	if s.affiliateService == nil {
-		return nil
+		return
 	}
 
 	tx, err := s.entClient.Tx(ctx)
@@ -378,7 +374,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": fmt.Sprintf("begin affiliate rebate tx: %v", err),
 		})
-		return fmt.Errorf("begin affiliate rebate tx: %w", err)
+		return
 	}
 	defer func() { _ = tx.Rollback() }()
 
@@ -388,10 +384,10 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("claim affiliate rebate audit: %w", err)
+		return
 	}
 	if !claimed {
-		return nil
+		return
 	}
 
 	rebateAmount, err := s.affiliateService.AccrueInviteRebate(txCtx, o.UserID, o.Amount)
@@ -399,7 +395,7 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("accrue affiliate rebate: %w", err)
+		return
 	}
 
 	if rebateAmount <= 0 {
@@ -410,15 +406,14 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 			s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 				"error": err.Error(),
 			})
-			return fmt.Errorf("update affiliate rebate skipped audit: %w", err)
+			return
 		}
 		if err := tx.Commit(); err != nil {
 			s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 				"error": fmt.Sprintf("commit affiliate rebate tx: %v", err),
 			})
-			return fmt.Errorf("commit affiliate rebate tx: %w", err)
 		}
-		return nil
+		return
 	}
 
 	if err := s.updateClaimedAffiliateRebateAudit(txCtx, tx.Client(), o.ID, "AFFILIATE_REBATE_APPLIED", map[string]any{
@@ -428,16 +423,14 @@ func (s *PaymentService) applyAffiliateRebateForOrder(ctx context.Context, o *db
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": err.Error(),
 		})
-		return fmt.Errorf("update affiliate rebate applied audit: %w", err)
+		return
 	}
 
 	if err := tx.Commit(); err != nil {
 		s.writeAuditLog(ctx, o.ID, "AFFILIATE_REBATE_FAILED", "system", map[string]any{
 			"error": fmt.Sprintf("commit affiliate rebate tx: %v", err),
 		})
-		return fmt.Errorf("commit affiliate rebate tx: %w", err)
 	}
-	return nil
 }
 
 func (s *PaymentService) tryClaimAffiliateRebateAudit(ctx context.Context, client *dbent.Client, orderID int64, baseAmount float64) (bool, error) {
@@ -451,11 +444,11 @@ func (s *PaymentService) tryClaimAffiliateRebateAudit(ctx context.Context, clien
 	})
 	rows, err := client.QueryContext(ctx, `
 INSERT INTO payment_audit_logs (order_id, action, detail, operator, created_at)
-SELECT $1::text, 'AFFILIATE_REBATE_APPLIED', $2::text, 'system', NOW()
+SELECT $1, 'AFFILIATE_REBATE_APPLIED', $2, 'system', NOW()
 WHERE NOT EXISTS (
 	SELECT 1
 	FROM payment_audit_logs
-	WHERE order_id = $1::text
+	WHERE order_id = $1
 	  AND action IN ('AFFILIATE_REBATE_APPLIED', 'AFFILIATE_REBATE_SKIPPED')
 )
 ON CONFLICT (order_id, action) DO NOTHING

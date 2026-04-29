@@ -299,11 +299,11 @@ const routes: RouteRecordRaw[] = [
     name: 'StripePayment',
     component: () => import('@/views/user/StripePaymentView.vue'),
     meta: {
-      requiresAuth: false,
+      requiresAuth: true,
       requiresAdmin: false,
       title: 'Stripe Payment',
       titleKey: 'payment.stripePay',
-      requiresPayment: false
+      requiresPayment: true
     }
   },
   {
@@ -311,10 +311,10 @@ const routes: RouteRecordRaw[] = [
     name: 'StripePopup',
     component: () => import('@/views/user/StripePopupView.vue'),
     meta: {
-      requiresAuth: false,
+      requiresAuth: true,
       requiresAdmin: false,
       title: 'Payment',
-      requiresPayment: false
+      requiresPayment: true
     }
   },
   {

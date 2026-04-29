@@ -112,7 +112,6 @@ describe('EmailVerifyView', () => {
     apiClientPostMock.mockReset()
     authStoreState.pendingAuthSession = null
     sessionStorage.clear()
-    localStorage.clear()
 
     getPublicSettingsMock.mockResolvedValue({
       turnstile_enabled: false,
@@ -137,7 +136,6 @@ describe('EmailVerifyView', () => {
       JSON.stringify({
         email: 'fresh@example.com',
         password: 'secret-123',
-        aff_code: 'AFF123',
       })
     )
 
@@ -336,7 +334,6 @@ describe('EmailVerifyView', () => {
       email: 'fresh@example.com',
       password: 'secret-123',
       verify_code: '123456',
-      aff_code: 'AFF123',
     })
     expect(persistOAuthTokenContextMock).toHaveBeenCalledWith({
       access_token: 'oauth-access-token',
