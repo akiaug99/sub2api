@@ -4381,6 +4381,13 @@ export default {
       form: {
         title: 'Title',
         content: 'Content (Markdown supported)',
+        imageUpload: 'Upload Image',
+        uploadImage: 'Choose Image',
+        removeImage: 'Remove Image',
+        insertImage: 'Insert into Content',
+        imageAlt: 'Image Description',
+        imageAltPlaceholder: 'Optional alt text for accessibility',
+        imageUploadHint: 'Images are embedded into the announcement content as Markdown. Recommended size: 1 MB or smaller.',
         status: 'Status',
         notifyMode: 'Notify Mode',
         notifyModeHint: 'Popup mode will show a popup notification to users',
