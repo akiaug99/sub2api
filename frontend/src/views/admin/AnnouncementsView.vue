@@ -176,7 +176,45 @@
 
         <div>
           <label class="input-label">{{ t('admin.announcements.form.content') }}</label>
-          <textarea v-model="form.content" rows="6" class="input" required></textarea>
+          <textarea
+            ref="contentTextarea"
+            v-model="form.content"
+            rows="6"
+            class="input"
+            required
+          ></textarea>
+        </div>
+
+        <div class="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-dark-600 dark:bg-dark-800/60">
+          <label class="input-label">{{ t('admin.announcements.form.imageUpload') }}</label>
+          <ImageUpload
+            v-model="uploadedAnnouncementImage"
+            mode="image"
+            size="md"
+            :upload-label="t('admin.announcements.form.uploadImage')"
+            :remove-label="t('admin.announcements.form.removeImage')"
+            :hint="t('admin.announcements.form.imageUploadHint')"
+            :max-size="ANNOUNCEMENT_IMAGE_MAX_SIZE"
+          />
+          <div class="mt-3 flex flex-col gap-3 md:flex-row md:items-end">
+            <div class="flex-1">
+              <label class="input-label">{{ t('admin.announcements.form.imageAlt') }}</label>
+              <input
+                v-model="uploadedAnnouncementImageAlt"
+                type="text"
+                class="input"
+                :placeholder="t('admin.announcements.form.imageAltPlaceholder')"
+              />
+            </div>
+            <button
+              type="button"
+              class="btn btn-secondary md:self-end"
+              :disabled="!uploadedAnnouncementImage"
+              @click="insertUploadedImageIntoContent"
+            >
+              {{ t('admin.announcements.form.insertImage') }}
+            </button>
+          </div>
         </div>
 
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -244,12 +282,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
+import {
+  buildAnnouncementImageMarkdown,
+  insertTextAtSelection,
+} from '@/utils/announcementMarkdown'
 import type { AdminGroup, Announcement, AnnouncementTargeting } from '@/types'
 import type { Column } from '@/components/common/types'
 
@@ -262,12 +304,14 @@ import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
+import ImageUpload from '@/components/common/ImageUpload.vue'
 
 import AnnouncementTargetingEditor from '@/components/admin/announcements/AnnouncementTargetingEditor.vue'
 import AnnouncementReadStatusDialog from '@/components/admin/announcements/AnnouncementReadStatusDialog.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const ANNOUNCEMENT_IMAGE_MAX_SIZE = 1024 * 1024
 
 const announcements = ref<Announcement[]>([])
 const loading = ref(false)
@@ -422,6 +466,9 @@ const form = reactive({
   ends_at_str: '',
   targeting: { any_of: [] } as AnnouncementTargeting
 })
+const contentTextarea = ref<HTMLTextAreaElement | null>(null)
+const uploadedAnnouncementImage = ref('')
+const uploadedAnnouncementImageAlt = ref('')
 
 const subscriptionGroups = ref<AdminGroup[]>([])
 
@@ -443,6 +490,7 @@ function resetForm() {
   form.starts_at_str = ''
   form.ends_at_str = ''
   form.targeting = { any_of: [] }
+  resetAnnouncementImageDraft()
 }
 
 function fillFormFromAnnouncement(a: Announcement) {
@@ -456,6 +504,7 @@ function fillFormFromAnnouncement(a: Announcement) {
   form.ends_at_str = a.ends_at ? formatDateTimeLocalInput(Math.floor(new Date(a.ends_at).getTime() / 1000)) : ''
 
   form.targeting = a.targeting ?? { any_of: [] }
+  resetAnnouncementImageDraft()
 }
 
 function openCreateDialog() {
@@ -473,6 +522,35 @@ function openEditDialog(row: Announcement) {
 function closeEdit() {
   showEditDialog.value = false
   editingAnnouncement.value = null
+  resetAnnouncementImageDraft()
+}
+
+function resetAnnouncementImageDraft() {
+  uploadedAnnouncementImage.value = ''
+  uploadedAnnouncementImageAlt.value = ''
+}
+
+async function insertUploadedImageIntoContent() {
+  const imageSrc = uploadedAnnouncementImage.value.trim()
+  if (!imageSrc) return
+
+  const markdown = buildAnnouncementImageMarkdown(imageSrc, uploadedAnnouncementImageAlt.value)
+  const textarea = contentTextarea.value
+  const result = insertTextAtSelection(
+    form.content,
+    markdown,
+    textarea?.selectionStart,
+    textarea?.selectionEnd,
+  )
+
+  form.content = result.nextValue
+  resetAnnouncementImageDraft()
+
+  await nextTick()
+  if (contentTextarea.value) {
+    contentTextarea.value.focus()
+    contentTextarea.value.setSelectionRange(result.nextCursorStart, result.nextCursorEnd)
+  }
 }
 
 function buildCreatePayload() {

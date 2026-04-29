@@ -399,6 +399,13 @@ export default {
       form: {
         title: '标题',
         content: '内容（支持 Markdown）',
+        imageUpload: '上传图片',
+        uploadImage: '选择图片',
+        removeImage: '移除图片',
+        insertImage: '插入正文',
+        imageAlt: '图片描述',
+        imageAltPlaceholder: '可选，填写图片说明或无障碍描述',
+        imageUploadHint: '图片会以内嵌 Markdown 的方式写入公告正文，建议控制在 1 MB 以内。',
         status: '状态',
         notifyMode: '通知方式',
         notifyModeHint: '弹窗模式会自动弹出通知给用户',
