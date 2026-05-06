@@ -5,16 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/util/logredact"
 )
 
 // tokenRefreshTempUnschedDuration token 刷新重试耗尽后临时不可调度的持续时间
 const tokenRefreshTempUnschedDuration = 10 * time.Minute
+const tokenRefreshUnauthorizedTempUnschedDuration = 24 * time.Hour
+const tokenRefreshUnauthorizedCooldownReasonPrefix = "token refresh unauthorized cooldown: "
 
 // TokenRefreshService OAuth token自动刷新服务
 // 定期检查并刷新即将过期的token
@@ -209,6 +213,15 @@ func (s *TokenRefreshService) processRefresh() {
 
 			oauthAccounts++
 
+			if shouldSkipRefreshDuringUnauthorizedCooldown(account) {
+				skipped++
+				slog.Debug("token_refresh.skipped_active_unauthorized_cooldown",
+					"account_id", account.ID,
+					"until", account.TempUnschedulableUntil.Format(time.RFC3339),
+				)
+				break
+			}
+
 			// 检查是否需要刷新
 			if !refresher.NeedsRefresh(account, refreshWindow) {
 				break // 不需要刷新，跳过
@@ -308,6 +321,10 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 			return nil
 		}
 
+		if s.handleUnauthorizedRefreshFailure(ctx, account, err) {
+			return err
+		}
+
 		// 不可重试错误（invalid_grant/invalid_client 等）直接标记 error 状态并返回
 		if isNonRetryableRefreshError(err) {
 			errorMsg := "Token refresh failed (non-retryable): " + logredact.RedactText(err.Error())
@@ -366,6 +383,26 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 	}
 
 	return lastErr
+}
+
+func (s *TokenRefreshService) handleUnauthorizedRefreshFailure(ctx context.Context, account *Account, err error) bool {
+	if !isRefreshUnauthorizedError(err) {
+		return false
+	}
+	until := time.Now().Add(tokenRefreshUnauthorizedTempUnschedDuration)
+	reason := tokenRefreshUnauthorizedCooldownReasonPrefix + err.Error()
+	if setErr := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); setErr != nil {
+		slog.Warn("token_refresh.set_temp_unschedulable_failed",
+			"account_id", account.ID,
+			"error", setErr,
+		)
+	} else {
+		slog.Info("token_refresh.temp_unschedulable_set",
+			"account_id", account.ID,
+			"until", until.Format(time.RFC3339),
+		)
+	}
+	return true
 }
 
 // postRefreshActions 刷新成功后的后续动作（清除错误状态、缓存失效、调度器同步等）
@@ -495,6 +532,39 @@ func isNonRetryableRefreshError(err error) bool {
 		}
 	}
 	return false
+}
+
+func isRefreshUnauthorizedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if infraerrors.Code(err) == http.StatusUnauthorized {
+		return true
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "status 401") ||
+		strings.Contains(msg, "refresh_token_reused") ||
+		strings.Contains(msg, "please try signing in again")
+}
+
+func shouldSkipRefreshDuringUnauthorizedCooldown(account *Account) bool {
+	if account == nil || account.TempUnschedulableUntil == nil {
+		return false
+	}
+	if !time.Now().Before(*account.TempUnschedulableUntil) {
+		return false
+	}
+	return isUnauthorizedRefreshCooldownReason(account.TempUnschedulableReason)
+}
+
+func isUnauthorizedRefreshCooldownReason(reason string) bool {
+	reason = strings.ToLower(strings.TrimSpace(reason))
+	if reason == "" {
+		return false
+	}
+	return strings.Contains(reason, strings.ToLower(tokenRefreshUnauthorizedCooldownReasonPrefix)) ||
+		strings.Contains(reason, "refresh_token_reused") ||
+		strings.Contains(reason, "status 401")
 }
 
 // ensureOpenAIPrivacy 检查 OpenAI OAuth 账号是否已设置 privacy_mode，

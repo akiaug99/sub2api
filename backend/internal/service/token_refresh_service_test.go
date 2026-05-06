@@ -22,6 +22,7 @@ type tokenRefreshAccountRepo struct {
 	setTempUnschedCalls    int
 	updateExtraCalls       int
 	lastErrorMessage       string
+	lastTempUnschedUntil   time.Time
 	lastTempUnschedReason  string
 	lastExtraUpdates       map[string]any
 	lastAccount            *Account
@@ -66,6 +67,7 @@ func (r *tokenRefreshAccountRepo) ClearTempUnschedulable(ctx context.Context, id
 
 func (r *tokenRefreshAccountRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.setTempUnschedCalls++
+	r.lastTempUnschedUntil = until
 	r.lastTempUnschedReason = reason
 	return nil
 }
@@ -84,6 +86,22 @@ func (r *tokenRefreshAccountRepo) UpdateExtra(ctx context.Context, id int64, upd
 		}
 	}
 	return nil
+}
+
+func (r *tokenRefreshAccountRepo) ListActive(ctx context.Context) ([]Account, error) {
+	if len(r.accounts) > 0 {
+		return append([]Account(nil), r.accounts...), nil
+	}
+	if len(r.accountsByID) == 0 {
+		return nil, nil
+	}
+	accounts := make([]Account, 0, len(r.accountsByID))
+	for _, acc := range r.accountsByID {
+		if acc != nil {
+			accounts = append(accounts, *acc)
+		}
+	}
+	return accounts, nil
 }
 
 type tokenCacheInvalidatorStub struct {
@@ -118,8 +136,9 @@ func (s *tempUnschedCacheStub) DeleteTempUnsched(ctx context.Context, accountID 
 }
 
 type tokenRefresherStub struct {
-	credentials map[string]any
-	err         error
+	credentials  map[string]any
+	err          error
+	refreshCalls int
 }
 
 func (r *tokenRefresherStub) CanRefresh(account *Account) bool {
@@ -131,6 +150,7 @@ func (r *tokenRefresherStub) NeedsRefresh(account *Account, refreshWindowDuratio
 }
 
 func (r *tokenRefresherStub) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
+	r.refreshCalls++
 	if r.err != nil {
 		return nil, r.err
 	}
