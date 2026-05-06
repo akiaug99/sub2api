@@ -109,7 +109,7 @@ func (s *openaiOAuthService) refreshTokenWithClientID(ctx context.Context, refre
 	}
 
 	if !resp.IsSuccessState() {
-		return nil, infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed: status %d, body: %s", resp.StatusCode, resp.String())
+		return nil, classifyOpenAIRefreshTokenError(resp.StatusCode, resp.String())
 	}
 
 	return &tokenResp, nil
@@ -138,4 +138,15 @@ func newOpenAINoProxyHintError(cause error) error {
 		"OPENAI_OAUTH_PROXY_REQUIRED",
 		"OpenAI OAuth request failed: no proxy is configured and this server could not reach OpenAI directly. Select a proxy that can access OpenAI, then retry; if the authorization code has expired, regenerate the authorization URL.",
 	).WithCause(cause)
+}
+
+func classifyOpenAIRefreshTokenError(statusCode int, body string) error {
+	lower := strings.ToLower(body)
+	if statusCode == http.StatusUnauthorized ||
+		strings.Contains(lower, "refresh_token_reused") ||
+		strings.Contains(lower, "invalid_grant") ||
+		strings.Contains(lower, "please try signing in again") {
+		return infraerrors.Newf(http.StatusUnauthorized, "OPENAI_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed: status %d, body: %s", statusCode, body)
+	}
+	return infraerrors.Newf(http.StatusBadGateway, "OPENAI_OAUTH_TOKEN_REFRESH_FAILED", "token refresh failed: status %d, body: %s", statusCode, body)
 }
