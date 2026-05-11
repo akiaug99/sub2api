@@ -1164,6 +1164,18 @@ func isOpenAITransientProcessingError(upstreamStatusCode int, upstreamMsg string
 	return match(string(upstreamBody))
 }
 
+func isOpenAIEdgeForbiddenHTML(upstreamStatusCode int, upstreamBody []byte) bool {
+	if upstreamStatusCode != http.StatusForbidden {
+		return false
+	}
+	body := strings.ToLower(string(bytes.TrimSpace(upstreamBody)))
+	if !strings.Contains(body, "<html") {
+		return false
+	}
+	return strings.Contains(body, "<meta http-equiv=\"refresh\"") ||
+		strings.Contains(body, "<meta http-equiv='refresh'")
+}
+
 // ExtractSessionID extracts the raw session ID from headers or body without hashing.
 // Used by ForwardAsAnthropic to pass as prompt_cache_key for upstream cache.
 func (s *OpenAIGatewayService) ExtractSessionID(c *gin.Context, body []byte) string {
@@ -2278,6 +2290,9 @@ func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool 
 }
 
 func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
+	if isOpenAIEdgeForbiddenHTML(statusCode, upstreamBody) {
+		return false
+	}
 	if s.shouldFailoverUpstreamError(statusCode) {
 		return true
 	}
@@ -4239,6 +4254,9 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	// 若开启 ForceCodexCLI，则强制将上游 User-Agent 伪装为 Codex CLI。
 	// 用于网关未透传/改写 User-Agent 时，仍能命中 Codex 侧识别逻辑。
 	if s.cfg != nil && s.cfg.Gateway.ForceCodexCLI {
+		req.Header.Set("user-agent", codexCLIUserAgent)
+	}
+	if account.Type == AccountTypeOAuth && !openai.IsCodexCLIRequest(req.Header.Get("user-agent")) {
 		req.Header.Set("user-agent", codexCLIUserAgent)
 	}
 
