@@ -715,6 +715,11 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 }
 
 func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account, upstreamMsg string, responseBody []byte) (shouldDisable bool) {
+	if isOpenAIEdgeForbiddenHTML(http.StatusForbidden, responseBody) {
+		slog.Warn("openai_403_edge_forbidden_preserve_account", "account_id", account.ID)
+		return false
+	}
+
 	msg := buildForbiddenErrorMessage(
 		"Access forbidden (403):",
 		upstreamMsg,
