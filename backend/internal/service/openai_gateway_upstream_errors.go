@@ -209,6 +209,18 @@ func isOpenAIContextWindowError(upstreamMsg string, upstreamBody []byte) bool {
 	return match(string(upstreamBody))
 }
 
+func isOpenAIEdgeForbiddenHTML(upstreamStatusCode int, upstreamBody []byte) bool {
+	if upstreamStatusCode != http.StatusForbidden {
+		return false
+	}
+	body := strings.ToLower(string(bytes.TrimSpace(upstreamBody)))
+	if !strings.Contains(body, "<html") {
+		return false
+	}
+	return strings.Contains(body, "<meta http-equiv=\"refresh\"") ||
+		strings.Contains(body, "<meta http-equiv='refresh'")
+}
+
 func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool {
 	switch statusCode {
 	case 401, 402, 403, 429, 529:
@@ -220,6 +232,9 @@ func (s *OpenAIGatewayService) shouldFailoverUpstreamError(statusCode int) bool 
 
 func (s *OpenAIGatewayService) shouldFailoverOpenAIUpstreamResponse(statusCode int, upstreamMsg string, upstreamBody []byte) bool {
 	if isOpenAIContextWindowError(upstreamMsg, upstreamBody) {
+		return false
+	}
+	if isOpenAIEdgeForbiddenHTML(statusCode, upstreamBody) {
 		return false
 	}
 	if s.shouldFailoverUpstreamError(statusCode) {

@@ -2522,6 +2522,32 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 // ==================== P1-08 修复：model 替换性能优化测试 ====================
 
 // ==================== P1-08 修复：model 替换性能优化测试 =============
+func TestOpenAIBuildUpstreamRequestOAuthNormalizesNonCodexUserAgent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader([]byte(`{"model":"gpt-5.4"}`)))
+	c.Request.Header.Set("User-Agent", "Mozilla/5.0 xyz.chatboxapp.app/1.20.2")
+
+	svc := &OpenAIGatewayService{}
+	account := &Account{
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"chatgpt_account_id": "chatgpt-acc"},
+	}
+
+	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5.4"}`), "token", false, "", false)
+	require.NoError(t, err)
+	require.Equal(t, codexCLIUserAgent, req.Header.Get("User-Agent"))
+}
+
+func TestOpenAIForbiddenHTMLDoesNotTriggerFailover(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	body := []byte(`<html><head><meta http-equiv="refresh" content="360"></head><body></body></html>`)
+
+	require.True(t, isOpenAIEdgeForbiddenHTML(http.StatusForbidden, body))
+	require.False(t, svc.shouldFailoverOpenAIUpstreamResponse(http.StatusForbidden, "", body))
+}
+
 func TestReplaceModelInSSELine(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 
