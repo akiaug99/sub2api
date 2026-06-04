@@ -20,8 +20,6 @@ type tokenRefreshAccountRepo struct {
 	setErrorCalls          int
 	clearTempCalls         int
 	setTempUnschedCalls    int
-	lastTempUnschedUntil   time.Time
-	lastTempUnschedReason  string
 	lastAccount            *Account
 	updateErr              error
 }
@@ -63,25 +61,7 @@ func (r *tokenRefreshAccountRepo) ClearTempUnschedulable(ctx context.Context, id
 
 func (r *tokenRefreshAccountRepo) SetTempUnschedulable(ctx context.Context, id int64, until time.Time, reason string) error {
 	r.setTempUnschedCalls++
-	r.lastTempUnschedUntil = until
-	r.lastTempUnschedReason = reason
 	return nil
-}
-
-func (r *tokenRefreshAccountRepo) ListActive(ctx context.Context) ([]Account, error) {
-	if len(r.accounts) > 0 {
-		return append([]Account(nil), r.accounts...), nil
-	}
-	if len(r.accountsByID) == 0 {
-		return nil, nil
-	}
-	accounts := make([]Account, 0, len(r.accountsByID))
-	for _, acc := range r.accountsByID {
-		if acc != nil {
-			accounts = append(accounts, *acc)
-		}
-	}
-	return accounts, nil
 }
 
 type tokenCacheInvalidatorStub struct {
@@ -112,9 +92,8 @@ func (s *tempUnschedCacheStub) DeleteTempUnsched(ctx context.Context, accountID 
 }
 
 type tokenRefresherStub struct {
-	credentials  map[string]any
-	err          error
-	refreshCalls int
+	credentials map[string]any
+	err         error
 }
 
 func (r *tokenRefresherStub) CanRefresh(account *Account) bool {
@@ -126,7 +105,6 @@ func (r *tokenRefresherStub) NeedsRefresh(account *Account, refreshWindowDuratio
 }
 
 func (r *tokenRefresherStub) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
-	r.refreshCalls++
 	if r.err != nil {
 		return nil, r.err
 	}
@@ -554,6 +532,7 @@ func TestIsNonRetryableRefreshError(t *testing.T) {
 		{name: "network_error", err: errors.New("network timeout"), expected: false},
 		{name: "invalid_grant", err: errors.New("invalid_grant"), expected: true},
 		{name: "invalid_client", err: errors.New("invalid_client"), expected: true},
+		{name: "refresh_token_reused", err: errors.New(`OPENAI_OAUTH_TOKEN_REFRESH_FAILED: token refresh failed: status 401, body: {"error":{"code":"refresh_token_reused"}}`), expected: true},
 		{name: "unauthorized_client", err: errors.New("unauthorized_client"), expected: true},
 		{name: "access_denied", err: errors.New("access_denied"), expected: true},
 		{name: "no_refresh_token", err: errors.New("no refresh token available"), expected: true},

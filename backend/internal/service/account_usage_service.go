@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"log/slog"
 	"math/rand/v2"
@@ -267,7 +266,6 @@ type AccountUsageService struct {
 	cache                   *UsageCache
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
-	openAIProbeUpstream     HTTPUpstream
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -297,14 +295,16 @@ func NewAccountUsageService(
 // OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
 // Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
 // API Key账号: 不支持usage查询
-func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64) (*UsageInfo, error) {
+func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error) {
+	forceProbe := len(force) > 0 && force[0]
+
 	account, err := s.accountRepo.GetByID(ctx, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("get account failed: %w", err)
 	}
 
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
-		usage, err := s.getOpenAIUsage(ctx, account)
+		usage, err := s.getOpenAIUsage(ctx, account, forceProbe)
 		if err == nil {
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
@@ -494,7 +494,7 @@ func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID
 	}
 }
 
-func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
+func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
 	now := time.Now()
 	usage := &UsageInfo{UpdatedAt: &now}
 
@@ -509,11 +509,18 @@ func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Accou
 		usage.SevenDay = progress
 	}
 
-	shouldProbe := shouldRefreshOpenAICodexSnapshot(account, usage, now) ||
-		shouldVerifyOpenAICodexWeeklyLimitWithProbe(account, usage, now)
-	if shouldProbe && s.shouldProbeOpenAICodexSnapshot(account.ID, now) {
-		if result, err := s.probeOpenAICodexSnapshot(ctx, account); err == nil {
-			s.applyOpenAICodexProbeResult(ctx, account, usage, result, now)
+	if (force || shouldRefreshOpenAICodexSnapshot(account, usage, now)) && s.shouldProbeOpenAICodexSnapshot(account.ID, now, force) {
+		if updates, err := s.probeOpenAICodexSnapshot(ctx, account); err == nil && len(updates) > 0 {
+			mergeAccountExtra(account, updates)
+			if usage.UpdatedAt == nil {
+				usage.UpdatedAt = &now
+			}
+			if progress := buildCodexUsageProgressFromExtra(account.Extra, "5h", now); progress != nil {
+				usage.FiveHour = progress
+			}
+			if progress := buildCodexUsageProgressFromExtra(account.Extra, "7d", now); progress != nil {
+				usage.SevenDay = progress
+			}
 		}
 	}
 
@@ -554,22 +561,6 @@ func shouldRefreshOpenAICodexSnapshot(account *Account, usage *UsageInfo, now ti
 	return isOpenAICodexSnapshotStale(account, now)
 }
 
-func shouldVerifyOpenAICodexWeeklyLimitWithProbe(account *Account, usage *UsageInfo, now time.Time) bool {
-	if account == nil || !account.IsOpenAIOAuth() {
-		return false
-	}
-	if usage == nil || usage.SevenDay == nil {
-		return false
-	}
-	if usage.SevenDay.Utilization < 100 {
-		return false
-	}
-	if usage.SevenDay.ResetsAt != nil && !now.Before(*usage.SevenDay.ResetsAt) {
-		return false
-	}
-	return true
-}
-
 func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {
 	if account == nil || !account.IsOpenAIOAuth() || !account.IsOpenAIResponsesWebSocketV2Enabled() {
 		return false
@@ -588,27 +579,23 @@ func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {
 	return now.Sub(ts) >= openAIProbeCacheTTL
 }
 
-func (s *AccountUsageService) shouldProbeOpenAICodexSnapshot(accountID int64, now time.Time) bool {
+func (s *AccountUsageService) shouldProbeOpenAICodexSnapshot(accountID int64, now time.Time, force ...bool) bool {
 	if s == nil || s.cache == nil || accountID <= 0 {
 		return true
 	}
-	if cached, ok := s.cache.openAIProbeCache.Load(accountID); ok {
-		if ts, ok := cached.(time.Time); ok && now.Sub(ts) < openAIProbeCacheTTL {
-			return false
+	forceProbe := len(force) > 0 && force[0]
+	if !forceProbe {
+		if cached, ok := s.cache.openAIProbeCache.Load(accountID); ok {
+			if ts, ok := cached.(time.Time); ok && now.Sub(ts) < openAIProbeCacheTTL {
+				return false
+			}
 		}
 	}
 	s.cache.openAIProbeCache.Store(accountID, now)
 	return true
 }
 
-type openAICodexProbeResult struct {
-	statusCode int
-	headers    http.Header
-	body       []byte
-	updates    map[string]any
-}
-
-func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, account *Account) (*openAICodexProbeResult, error) {
+func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, account *Account) (map[string]any, error) {
 	if account == nil || !account.IsOAuth() {
 		return nil, nil
 	}
@@ -650,44 +637,6 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	resp, err := s.doOpenAICodexProbeRequest(req, proxyURL, account)
-	if err != nil {
-		return nil, fmt.Errorf("openai codex probe request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	result := &openAICodexProbeResult{
-		statusCode: resp.StatusCode,
-		headers:    resp.Header,
-	}
-	if resp.StatusCode == http.StatusTooManyRequests {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-		result.body = body
-		if updates, err := extractOpenAICodexProbeUpdates(resp); err == nil && len(updates) > 0 {
-			result.updates = updates
-			s.persistOpenAICodexProbeSnapshot(account.ID, updates)
-		}
-		return result, nil
-	}
-
-	updates, err := extractOpenAICodexProbeUpdates(resp)
-	if err != nil {
-		return nil, err
-	}
-	if len(updates) > 0 {
-		result.updates = updates
-		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
-	}
-	return result, nil
-}
-
-func (s *AccountUsageService) doOpenAICodexProbeRequest(req *http.Request, proxyURL string, account *Account) (*http.Response, error) {
-	if s != nil && s.openAIProbeUpstream != nil {
-		if s.tlsFPProfileService != nil {
-			return s.openAIProbeUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.tlsFPProfileService.ResolveTLSProfile(account))
-		}
-		return s.openAIProbeUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, nil)
-	}
 	client, err := httppool.GetClient(httppool.Options{
 		ProxyURL:              proxyURL,
 		Timeout:               15 * time.Second,
@@ -696,76 +645,21 @@ func (s *AccountUsageService) doOpenAICodexProbeRequest(req *http.Request, proxy
 	if err != nil {
 		return nil, fmt.Errorf("build openai probe client: %w", err)
 	}
-	return client.Do(req)
-}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("openai codex probe request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 
-func (s *AccountUsageService) applyOpenAICodexProbeResult(ctx context.Context, account *Account, usage *UsageInfo, result *openAICodexProbeResult, now time.Time) {
-	if result == nil {
-		return
+	updates, err := extractOpenAICodexProbeUpdates(resp)
+	if err != nil {
+		return nil, err
 	}
-	if len(result.updates) > 0 {
-		mergeAccountExtra(account, result.updates)
-		if usage != nil {
-			if usage.UpdatedAt == nil {
-				usage.UpdatedAt = &now
-			}
-			if progress := buildCodexUsageProgressFromExtra(account.Extra, "5h", now); progress != nil {
-				usage.FiveHour = progress
-			}
-			if progress := buildCodexUsageProgressFromExtra(account.Extra, "7d", now); progress != nil {
-				usage.SevenDay = progress
-			}
-		}
+	if len(updates) > 0 {
+		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
+		return updates, nil
 	}
-
-	switch {
-	case result.statusCode == http.StatusTooManyRequests:
-		s.reconcileOpenAICodexProbe429(ctx, account, result.headers, result.body)
-	case result.statusCode >= http.StatusOK && result.statusCode < http.StatusMultipleChoices:
-		s.clearOpenAICodexProbeRuntimeRateLimit(ctx, account)
-	}
-}
-
-func (s *AccountUsageService) reconcileOpenAICodexProbe429(ctx context.Context, account *Account, headers http.Header, body []byte) {
-	if s == nil || s.accountRepo == nil || account == nil {
-		return
-	}
-
-	var resetAt *time.Time
-	if calculated := calculateOpenAI429ResetTime(headers); calculated != nil {
-		resetAt = calculated
-	} else if unixTs := parseOpenAIRateLimitResetTime(body); unixTs != nil {
-		t := time.Unix(*unixTs, 0)
-		resetAt = &t
-	}
-	if resetAt == nil {
-		t := time.Now().Add(5 * time.Minute)
-		resetAt = &t
-	}
-
-	if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
-		slog.Warn("openai_codex_probe_rate_limit_set_failed", "account_id", account.ID, "error", err)
-		return
-	}
-	now := time.Now()
-	account.RateLimitedAt = &now
-	account.RateLimitResetAt = resetAt
-}
-
-func (s *AccountUsageService) clearOpenAICodexProbeRuntimeRateLimit(ctx context.Context, account *Account) {
-	if s == nil || s.accountRepo == nil || account == nil {
-		return
-	}
-	if account.RateLimitedAt == nil && account.RateLimitResetAt == nil && account.OverloadUntil == nil {
-		return
-	}
-	if err := s.accountRepo.ClearRateLimit(ctx, account.ID); err != nil {
-		slog.Warn("openai_codex_probe_rate_limit_clear_failed", "account_id", account.ID, "error", err)
-		return
-	}
-	account.RateLimitedAt = nil
-	account.RateLimitResetAt = nil
-	account.OverloadUntil = nil
+	return nil, nil
 }
 
 func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any) {
