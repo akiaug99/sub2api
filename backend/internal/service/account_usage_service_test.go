@@ -241,7 +241,7 @@ func TestAccountUsageService_GetOpenAIUsage_VerifiesExhaustedCodexSnapshotAndRat
 		},
 	}
 
-	usage, err := svc.getOpenAIUsage(context.Background(), account)
+	usage, err := svc.getOpenAIUsage(context.Background(), account, false)
 	if err != nil {
 		t.Fatalf("getOpenAIUsage() error = %v", err)
 	}
@@ -300,7 +300,7 @@ func TestAccountUsageService_GetOpenAIUsage_VerifiesExhaustedCodexSnapshotAndCle
 		},
 	}
 
-	usage, err := svc.getOpenAIUsage(context.Background(), account)
+	usage, err := svc.getOpenAIUsage(context.Background(), account, false)
 	if err != nil {
 		t.Fatalf("getOpenAIUsage() error = %v", err)
 	}
