@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -1119,6 +1120,18 @@ func (s *OpenAIGatewayService) listSchedulableAccounts(ctx context.Context, grou
 		return nil, fmt.Errorf("query accounts failed: %w", err)
 	}
 	return accounts, nil
+}
+
+func openAICompatibleSchedulingPlatform(ctx context.Context) string {
+	if ctx != nil {
+		if forcePlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok && IsOpenAICompatiblePlatform(forcePlatform) {
+			return forcePlatform
+		}
+		if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && group != nil && IsOpenAICompatiblePlatform(group.Platform) {
+			return group.Platform
+		}
+	}
+	return PlatformOpenAI
 }
 
 func (s *OpenAIGatewayService) tryAcquireAccountSlot(ctx context.Context, accountID int64, maxConcurrency int) (*AcquireResult, error) {

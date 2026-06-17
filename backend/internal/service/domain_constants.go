@@ -42,7 +42,59 @@ const (
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
 	PlatformGrok        = domain.PlatformGrok
+	PlatformDeepSeek    = domain.PlatformDeepSeek
+	PlatformQwen        = domain.PlatformQwen
+	PlatformZhipu       = domain.PlatformZhipu
+	PlatformMoonshot    = domain.PlatformMoonshot
+	PlatformMiniMax     = domain.PlatformMiniMax
+	PlatformBaidu       = domain.PlatformBaidu
+	PlatformSpark       = domain.PlatformSpark
+	PlatformHunyuan     = domain.PlatformHunyuan
+	PlatformDoubao      = domain.PlatformDoubao
+	PlatformYi          = domain.PlatformYi
+	PlatformBaichuan    = domain.PlatformBaichuan
+	PlatformStepFun     = domain.PlatformStepFun
+	PlatformSenseTime   = domain.PlatformSenseTime
 )
+
+var SupportedPlatforms = []string{
+	PlatformAnthropic,
+	PlatformOpenAI,
+	PlatformGemini,
+	PlatformAntigravity,
+	PlatformGrok,
+	PlatformDeepSeek,
+	PlatformQwen,
+	PlatformZhipu,
+	PlatformMoonshot,
+	PlatformMiniMax,
+	PlatformBaidu,
+	PlatformSpark,
+	PlatformHunyuan,
+	PlatformDoubao,
+	PlatformYi,
+	PlatformBaichuan,
+	PlatformStepFun,
+	PlatformSenseTime,
+}
+
+var OpenAICompatiblePlatforms = []string{
+	PlatformOpenAI,
+	PlatformGrok,
+	PlatformDeepSeek,
+	PlatformQwen,
+	PlatformZhipu,
+	PlatformMoonshot,
+	PlatformMiniMax,
+	PlatformBaidu,
+	PlatformSpark,
+	PlatformHunyuan,
+	PlatformDoubao,
+	PlatformYi,
+	PlatformBaichuan,
+	PlatformStepFun,
+	PlatformSenseTime,
+}
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
 // ent/schema/user_platform_quota.go 的 Validate 函数独立维护（构建期约束），
@@ -53,11 +105,42 @@ var AllowedQuotaPlatforms = []string{
 	PlatformGemini,
 	PlatformAntigravity,
 	PlatformGrok,
+	PlatformDeepSeek,
+	PlatformQwen,
+	PlatformZhipu,
+	PlatformMoonshot,
+	PlatformMiniMax,
+	PlatformBaidu,
+	PlatformSpark,
+	PlatformHunyuan,
+	PlatformDoubao,
+	PlatformYi,
+	PlatformBaichuan,
+	PlatformStepFun,
+	PlatformSenseTime,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
 func IsAllowedQuotaPlatform(s string) bool {
 	for _, p := range AllowedQuotaPlatforms {
+		if p == s {
+			return true
+		}
+	}
+	return false
+}
+
+func IsSupportedPlatform(s string) bool {
+	for _, p := range SupportedPlatforms {
+		if p == s {
+			return true
+		}
+	}
+	return false
+}
+
+func IsOpenAICompatiblePlatform(s string) bool {
+	for _, p := range OpenAICompatiblePlatforms {
 		if p == s {
 			return true
 		}

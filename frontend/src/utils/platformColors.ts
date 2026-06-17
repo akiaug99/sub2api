@@ -5,10 +5,13 @@
  * instead of defining their own color mappings.
  */
 
-export type Platform = 'anthropic' | 'openai' | 'antigravity' | 'gemini' | 'grok'
+import { getPlatformLabel, type PlatformId } from '@/constants/platforms'
+
+export type Platform = PlatformId
+type KnownPlatform = 'anthropic' | 'openai' | 'antigravity' | 'gemini' | 'grok'
 
 // ── Badge (bg + text + border, for inline badges with border) ───────
-const BADGE: Record<Platform, string> = {
+const BADGE: Record<KnownPlatform, string> = {
   anthropic: 'bg-orange-500/10 text-orange-600 border-orange-500/30 dark:text-orange-400',
   openai: 'bg-green-500/10 text-green-600 border-green-500/30 dark:text-green-400',
   antigravity: 'bg-purple-500/10 text-purple-600 border-purple-500/30 dark:text-purple-400',
@@ -18,7 +21,7 @@ const BADGE: Record<Platform, string> = {
 const BADGE_DEFAULT = 'bg-slate-500/10 text-slate-600 border-slate-500/30 dark:text-slate-400'
 
 // ── Light badge (softer bg, no border) ──────────────────────────────
-const BADGE_LIGHT: Record<Platform, string> = {
+const BADGE_LIGHT: Record<KnownPlatform, string> = {
   anthropic: 'bg-orange-500/10 text-orange-600 dark:bg-orange-500/10 dark:text-orange-300',
   openai: 'bg-green-500/10 text-green-600 dark:bg-green-500/10 dark:text-green-300',
   antigravity: 'bg-purple-500/10 text-purple-600 dark:bg-purple-500/10 dark:text-purple-300',
@@ -27,7 +30,7 @@ const BADGE_LIGHT: Record<Platform, string> = {
 }
 
 // ── Border ──────────────────────────────────────────────────────────
-const BORDER: Record<Platform, string> = {
+const BORDER: Record<KnownPlatform, string> = {
   anthropic: 'border-orange-500/20 dark:border-orange-500/20',
   openai: 'border-green-500/20 dark:border-green-500/20',
   antigravity: 'border-purple-500/20 dark:border-purple-500/20',
@@ -37,7 +40,7 @@ const BORDER: Record<Platform, string> = {
 const BORDER_DEFAULT = 'border-gray-200 dark:border-dark-700'
 
 // ── Accent bar (gradient) ───────────────────────────────────────────
-const ACCENT_BAR: Record<Platform, string> = {
+const ACCENT_BAR: Record<KnownPlatform, string> = {
   anthropic: 'bg-gradient-to-r from-orange-400 to-orange-500',
   openai: 'bg-gradient-to-r from-emerald-400 to-emerald-500',
   antigravity: 'bg-gradient-to-r from-purple-400 to-purple-500',
@@ -47,7 +50,7 @@ const ACCENT_BAR: Record<Platform, string> = {
 const ACCENT_BAR_DEFAULT = 'bg-gradient-to-r from-primary-400 to-primary-500'
 
 // ── Text (price, icon) ─────────────────────────────────────────────
-const TEXT: Record<Platform, string> = {
+const TEXT: Record<KnownPlatform, string> = {
   anthropic: 'text-orange-600 dark:text-orange-400',
   openai: 'text-emerald-600 dark:text-emerald-400',
   antigravity: 'text-purple-600 dark:text-purple-400',
@@ -57,7 +60,7 @@ const TEXT: Record<Platform, string> = {
 const TEXT_DEFAULT = 'text-primary-600 dark:text-primary-400'
 
 // ── Icon (check mark etc.) ──────────────────────────────────────────
-const ICON: Record<Platform, string> = {
+const ICON: Record<KnownPlatform, string> = {
   anthropic: 'text-orange-500 dark:text-orange-400',
   openai: 'text-emerald-500 dark:text-emerald-400',
   antigravity: 'text-purple-500 dark:text-purple-400',
@@ -67,7 +70,7 @@ const ICON: Record<Platform, string> = {
 const ICON_DEFAULT = 'text-primary-500 dark:text-primary-400'
 
 // ── Button (solid bg) ───────────────────────────────────────────────
-const BUTTON: Record<Platform, string> = {
+const BUTTON: Record<KnownPlatform, string> = {
   anthropic: 'bg-orange-500 text-white hover:bg-orange-600 active:bg-orange-700 dark:bg-orange-500/80 dark:hover:bg-orange-500',
   openai: 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800 dark:bg-green-600/80 dark:hover:bg-green-600',
   antigravity: 'bg-purple-500 text-white hover:bg-purple-600 active:bg-purple-700 dark:bg-purple-500/80 dark:hover:bg-purple-500',
@@ -77,7 +80,7 @@ const BUTTON: Record<Platform, string> = {
 const BUTTON_DEFAULT = 'bg-primary-500 text-white hover:bg-primary-600 dark:bg-primary-600 dark:hover:bg-primary-500'
 
 // ── Discount badge ──────────────────────────────────────────────────
-const DISCOUNT: Record<Platform, string> = {
+const DISCOUNT: Record<KnownPlatform, string> = {
   anthropic: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   openai: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
@@ -87,7 +90,7 @@ const DISCOUNT: Record<Platform, string> = {
 const DISCOUNT_DEFAULT = 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
 
 // ── Header gradient (subscription confirm) ─────────────────────────
-const GRADIENT: Record<Platform, string> = {
+const GRADIENT: Record<KnownPlatform, string> = {
   anthropic: 'from-orange-500 to-orange-600',
   openai: 'from-emerald-500 to-emerald-600',
   antigravity: 'from-purple-500 to-purple-600',
@@ -97,7 +100,7 @@ const GRADIENT: Record<Platform, string> = {
 const GRADIENT_DEFAULT = 'from-primary-500 to-primary-600'
 
 // ── Header text (light text on gradient bg) ────────────────────────
-const GRADIENT_TEXT: Record<Platform, string> = {
+const GRADIENT_TEXT: Record<KnownPlatform, string> = {
   anthropic: 'text-orange-100',
   openai: 'text-emerald-100',
   antigravity: 'text-purple-100',
@@ -106,7 +109,7 @@ const GRADIENT_TEXT: Record<Platform, string> = {
 }
 const GRADIENT_TEXT_DEFAULT = 'text-primary-100'
 
-const GRADIENT_SUBTEXT: Record<Platform, string> = {
+const GRADIENT_SUBTEXT: Record<KnownPlatform, string> = {
   anthropic: 'text-orange-200',
   openai: 'text-emerald-200',
   antigravity: 'text-purple-200',
@@ -117,7 +120,7 @@ const GRADIENT_SUBTEXT_DEFAULT = 'text-primary-200'
 
 // ── Public API ──────────────────────────────────────────────────────
 
-function isPlatform(p: string): p is Platform {
+function isPlatform(p: string): p is KnownPlatform {
   return p === 'anthropic' || p === 'openai' || p === 'antigravity' || p === 'gemini' || p === 'grok'
 }
 
@@ -166,12 +169,5 @@ export function platformGradientSubtextClass(p: string): string {
 }
 
 export function platformLabel(p: string): string {
-  switch (p) {
-    case 'anthropic': return 'Anthropic'
-    case 'openai': return 'OpenAI'
-    case 'antigravity': return 'Antigravity'
-    case 'gemini': return 'Gemini'
-    case 'grok': return 'Grok'
-    default: return p || 'API'
-  }
+  return getPlatformLabel(p || 'API')
 }

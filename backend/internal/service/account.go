@@ -1191,6 +1191,10 @@ func (a *Account) IsOpenAI() bool {
 	return a.Platform == PlatformOpenAI
 }
 
+func (a *Account) IsOpenAICompatible() bool {
+	return IsOpenAICompatiblePlatform(a.Platform)
+}
+
 func (a *Account) IsAnthropic() bool {
 	return a.Platform == PlatformAnthropic
 }
@@ -1223,14 +1227,21 @@ func (a *Account) IsOpenAIApiKey() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeAPIKey
 }
 
+func (a *Account) IsOpenAICompatibleAPIKey() bool {
+	return a.IsOpenAICompatible() && a.Type == AccountTypeAPIKey
+}
+
 func (a *Account) GetOpenAIBaseURL() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return ""
 	}
 	if a.Type == AccountTypeAPIKey {
 		baseURL := a.GetCredential("base_url")
 		if baseURL != "" {
 			return baseURL
+		}
+		if !a.IsOpenAI() {
+			return ""
 		}
 	}
 	return "https://api.openai.com"
@@ -1283,14 +1294,14 @@ func (a *Account) GetOpenAIIDToken() string {
 }
 
 func (a *Account) GetOpenAIApiKey() string {
-	if !a.IsOpenAIApiKey() {
+	if !a.IsOpenAICompatibleAPIKey() {
 		return ""
 	}
 	return a.GetCredential("api_key")
 }
 
 func (a *Account) GetOpenAIUserAgent() string {
-	if !a.IsOpenAI() {
+	if !a.IsOpenAICompatible() {
 		return ""
 	}
 	return a.GetCredential("user_agent")

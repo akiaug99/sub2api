@@ -1,7 +1,11 @@
 // Package model 定义服务层使用的数据模型。
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+)
 
 // ErrorPassthroughRule 全局错误透传规则
 // 用于控制上游错误如何返回给客户端
@@ -32,16 +36,48 @@ const MatchModeAll = "all"
 
 // 支持的平台常量
 const (
-	PlatformAnthropic   = "anthropic"
-	PlatformOpenAI      = "openai"
-	PlatformGemini      = "gemini"
-	PlatformAntigravity = "antigravity"
-	PlatformGrok        = "grok"
+	PlatformAnthropic   = domain.PlatformAnthropic
+	PlatformOpenAI      = domain.PlatformOpenAI
+	PlatformGemini      = domain.PlatformGemini
+	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformGrok        = domain.PlatformGrok
+	PlatformDeepSeek    = domain.PlatformDeepSeek
+	PlatformQwen        = domain.PlatformQwen
+	PlatformZhipu       = domain.PlatformZhipu
+	PlatformMoonshot    = domain.PlatformMoonshot
+	PlatformMiniMax     = domain.PlatformMiniMax
+	PlatformBaidu       = domain.PlatformBaidu
+	PlatformSpark       = domain.PlatformSpark
+	PlatformHunyuan     = domain.PlatformHunyuan
+	PlatformDoubao      = domain.PlatformDoubao
+	PlatformYi          = domain.PlatformYi
+	PlatformBaichuan    = domain.PlatformBaichuan
+	PlatformStepFun     = domain.PlatformStepFun
+	PlatformSenseTime   = domain.PlatformSenseTime
 )
 
 // AllPlatforms 返回所有支持的平台列表
 func AllPlatforms() []string {
-	return []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok}
+	return []string{
+		PlatformAnthropic,
+		PlatformOpenAI,
+		PlatformGemini,
+		PlatformAntigravity,
+		PlatformGrok,
+		PlatformDeepSeek,
+		PlatformQwen,
+		PlatformZhipu,
+		PlatformMoonshot,
+		PlatformMiniMax,
+		PlatformBaidu,
+		PlatformSpark,
+		PlatformHunyuan,
+		PlatformDoubao,
+		PlatformYi,
+		PlatformBaichuan,
+		PlatformStepFun,
+		PlatformSenseTime,
+	}
 }
 
 // Validate 验证规则配置的有效性

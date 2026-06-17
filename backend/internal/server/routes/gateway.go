@@ -11,7 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterGatewayRoutes 注册 API 网关路由（Claude/OpenAI/Gemini 兼容）
+// RegisterGatewayRoutes registers Claude/OpenAI/Gemini compatible gateway routes.
 func RegisterGatewayRoutes(
 	r *gin.Engine,
 	h *handler.Handlers,
@@ -27,36 +27,37 @@ func RegisterGatewayRoutes(
 	opsErrorLogger := handler.OpsErrorLoggerMiddleware(opsService)
 	endpointNorm := handler.InboundEndpointMiddleware()
 
-	// 未分组 Key 拦截中间件（按协议格式区分错误响应）
+	// Ungrouped key guard with protocol-specific error responses.
 	requireGroupAnthropic := middleware.RequireGroupAssignment(settingService, middleware.AnthropicErrorWriter)
 	requireGroupGoogle := middleware.RequireGroupAssignment(settingService, middleware.GoogleErrorWriter)
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
-		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI, service.PlatformGrok:
-			return true
-		default:
-			return false
-		}
+		return service.IsOpenAICompatiblePlatform(getGroupPlatform(c))
 	}
 	isOpenAIGatewayPlatform := func(c *gin.Context) bool {
 		return getGroupPlatform(c) == service.PlatformOpenAI
 	}
+	isOpenAIEmbeddingsGatewayPlatform := func(c *gin.Context) bool {
+		platform := getGroupPlatform(c)
+		return platform != service.PlatformGrok && service.IsOpenAICompatiblePlatform(platform)
+	}
 	imagesHandler := func(c *gin.Context) {
-		switch getGroupPlatform(c) {
-		case service.PlatformOpenAI:
-			h.OpenAIGateway.Images(c)
-		case service.PlatformGrok:
+		platform := getGroupPlatform(c)
+		if platform == service.PlatformGrok {
 			h.OpenAIGateway.GrokImages(c)
-		default:
-			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": gin.H{
-					"type":    "not_found_error",
-					"message": "Images API is not supported for this platform",
-				},
-			})
+			return
 		}
+		if service.IsOpenAICompatiblePlatform(platform) {
+			h.OpenAIGateway.Images(c)
+			return
+		}
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Images API is not supported for this platform",
+			},
+		})
 	}
 	videoGenerationHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
@@ -84,7 +85,7 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
-	// API网关（Claude API兼容）
+	// Claude-compatible API gateway.
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
 	gateway.Use(clientRequestID)
@@ -93,7 +94,7 @@ func RegisterGatewayRoutes(
 	gateway.Use(gin.HandlerFunc(apiKeyAuth))
 	gateway.Use(requireGroupAnthropic)
 	{
-		// /v1/messages: auto-route based on group platform
+		// /v1/messages: auto-route based on group platform.
 		gateway.POST("/messages", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				h.OpenAIGateway.Messages(c)
@@ -132,7 +133,7 @@ func RegisterGatewayRoutes(
 			h.Gateway.Models(c)
 		})
 		gateway.GET("/usage", h.Gateway.Usage)
-		// OpenAI Responses API: auto-route based on group platform
+		// OpenAI Responses API: auto-route based on group platform.
 		gateway.POST("/responses", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				h.OpenAIGateway.Responses(c)
@@ -159,7 +160,7 @@ func RegisterGatewayRoutes(
 			h.Gateway.ChatCompletions(c)
 		})
 		gateway.POST("/embeddings", func(c *gin.Context) {
-			if getGroupPlatform(c) != service.PlatformOpenAI {
+			if !isOpenAIEmbeddingsGatewayPlatform(c) {
 				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 				c.JSON(http.StatusNotFound, gin.H{
 					"error": gin.H{
@@ -187,7 +188,7 @@ func RegisterGatewayRoutes(
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 	}
 
-	// Gemini 原生 API 兼容层（Gemini SDK/CLI 直连）
+	// Gemini native API compatibility layer.
 	gemini := r.Group("/v1beta")
 	gemini.Use(bodyLimit)
 	gemini.Use(clientRequestID)
@@ -202,7 +203,7 @@ func RegisterGatewayRoutes(
 		gemini.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
 	}
 
-	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform
+	// OpenAI Responses API aliases without /v1 prefix.
 	responsesHandler := func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 			h.OpenAIGateway.Responses(c)
@@ -225,7 +226,7 @@ func RegisterGatewayRoutes(
 		})
 		codexDirect.GET("/models", h.OpenAIGateway.CodexModels)
 	}
-	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
+	// OpenAI Chat Completions API alias without /v1 prefix.
 	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 			h.OpenAIGateway.ChatCompletions(c)
@@ -234,7 +235,7 @@ func RegisterGatewayRoutes(
 		h.Gateway.ChatCompletions(c)
 	})
 	r.POST("/embeddings", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
-		if getGroupPlatform(c) != service.PlatformOpenAI {
+		if !isOpenAIEmbeddingsGatewayPlatform(c) {
 			service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": gin.H{
@@ -251,10 +252,10 @@ func RegisterGatewayRoutes(
 	r.POST("/videos/generations", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoGenerationHandler)
 	r.GET("/videos/:request_id", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, videoStatusHandler)
 
-	// Antigravity 模型列表
+	// Antigravity model list.
 	r.GET("/antigravity/models", gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, h.Gateway.AntigravityModels)
 
-	// Antigravity 专用路由（仅使用 antigravity 账户，不混合调度）
+	// Antigravity dedicated routes only use antigravity accounts.
 	antigravityV1 := r.Group("/antigravity/v1")
 	antigravityV1.Use(bodyLimit)
 	antigravityV1.Use(clientRequestID)
@@ -283,7 +284,6 @@ func RegisterGatewayRoutes(
 		antigravityV1Beta.GET("/models/:model", h.Gateway.GeminiV1BetaGetModel)
 		antigravityV1Beta.POST("/models/*modelAction", h.Gateway.GeminiV1BetaModels)
 	}
-
 }
 
 // getGroupPlatform extracts the group platform from the API Key stored in context.
@@ -293,4 +293,8 @@ func getGroupPlatform(c *gin.Context) string {
 		return ""
 	}
 	return apiKey.Group.Platform
+}
+
+func isOpenAICompatibleGroup(c *gin.Context) bool {
+	return service.IsOpenAICompatiblePlatform(getGroupPlatform(c))
 }

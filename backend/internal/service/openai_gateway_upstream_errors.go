@@ -342,9 +342,13 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		)
 	}
 
+	platform := PlatformOpenAI
+	if account != nil && account.Platform != "" {
+		platform = account.Platform
+	}
 	if status, errType, errMsg, matched := applyErrorPassthroughRule(
 		c,
-		PlatformOpenAI,
+		platform,
 		resp.StatusCode,
 		body,
 		http.StatusBadGateway,

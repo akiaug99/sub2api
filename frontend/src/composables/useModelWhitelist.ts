@@ -221,6 +221,24 @@ const hunyuanModels = [
   'hunyuan-vision', 'hunyuan-code'
 ]
 
+// Baichuan
+const baichuanModels = [
+  'Baichuan4', 'Baichuan3-Turbo', 'Baichuan3-Turbo-128k',
+  'Baichuan2-Turbo', 'Baichuan2-Turbo-192k'
+]
+
+// StepFun
+const stepfunModels = [
+  'step-1-8k', 'step-1-32k', 'step-1-128k',
+  'step-1v-8k', 'step-2-16k', 'step-2-mini'
+]
+
+// SenseNova
+const sensetimeModels = [
+  'SenseChat-5', 'SenseChat-Turbo', 'SenseChat-128K',
+  'SenseNova-V5'
+]
+
 // Perplexity
 const perplexityModels = [
   'sonar', 'sonar-pro', 'sonar-reasoning',
@@ -247,6 +265,9 @@ const allModelsList: string[] = [
   ...baiduModels,
   ...sparkModels,
   ...hunyuanModels,
+  ...baichuanModels,
+  ...stepfunModels,
+  ...sensetimeModels,
   ...perplexityModels
 ]
 
@@ -427,6 +448,9 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'baidu': return baiduModels
     case 'spark': return sparkModels
     case 'hunyuan': return hunyuanModels
+    case 'baichuan': return baichuanModels
+    case 'stepfun': return stepfunModels
+    case 'sensetime': return sensetimeModels
     case 'perplexity': return perplexityModels
     default: return claudeModels
   }

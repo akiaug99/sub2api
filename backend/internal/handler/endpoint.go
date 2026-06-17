@@ -165,14 +165,15 @@ func isBareOrSubpathOf(path, root string) bool {
 func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 	inbound = strings.TrimSpace(inbound)
 
-	switch platform {
-	case service.PlatformOpenAI, service.PlatformGrok:
-		if inbound == EndpointEmbeddings || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits || inbound == EndpointVideosGenerations || inbound == EndpointVideos {
+	if service.IsOpenAICompatiblePlatform(platform) {
+		if inbound == EndpointEmbeddings || inbound == EndpointImagesGenerations || inbound == EndpointImagesEdits {
 			return inbound
 		}
-		// OpenAI forwards everything to the Responses API.
-		// Preserve subresource suffix (e.g. /v1/responses/compact,
-		// /v1/responses/compact/detail) as derived from the raw path.
+		if platform == service.PlatformGrok && (inbound == EndpointVideosGenerations || inbound == EndpointVideos) {
+			return inbound
+		}
+		// OpenAI-compatible providers use the Responses API for normalized
+		// message/completion traffic while preserving /responses subpaths.
 		if suffix := responsesSubpathSuffix(rawRequestPath); suffix != "" {
 			return EndpointResponses + suffix
 		}
@@ -186,7 +187,9 @@ func DeriveUpstreamEndpoint(inbound, rawRequestPath, platform string) string {
 			return EndpointResponsesCompact
 		}
 		return EndpointResponses
+	}
 
+	switch platform {
 	case service.PlatformAnthropic:
 		return EndpointMessages
 

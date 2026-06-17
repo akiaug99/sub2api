@@ -23,6 +23,19 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
+	PlatformDeepSeek    = "deepseek"
+	PlatformQwen        = "qwen"
+	PlatformZhipu       = "zhipu"
+	PlatformMoonshot    = "moonshot"
+	PlatformMiniMax     = "minimax"
+	PlatformBaidu       = "baidu"
+	PlatformSpark       = "spark"
+	PlatformHunyuan     = "hunyuan"
+	PlatformDoubao      = "doubao"
+	PlatformYi          = "yi"
+	PlatformBaichuan    = "baichuan"
+	PlatformStepFun     = "stepfun"
+	PlatformSenseTime   = "sensetime"
 )
 
 // Account type constants

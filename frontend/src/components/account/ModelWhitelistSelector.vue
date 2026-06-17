@@ -137,6 +137,7 @@ import type { SyncUpstreamPreviewParams } from '@/api/admin/accounts'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { allModels, getModelsByPlatform } from '@/composables/useModelWhitelist'
+import { OPENAI_COMPATIBLE_PLATFORM_VALUES } from '@/constants/platforms'
 
 const { t } = useI18n()
 
@@ -181,7 +182,7 @@ const normalizedPlatforms = computed(() => {
   )
 })
 
-const upstreamSyncPlatforms = new Set(['anthropic', 'openai', 'gemini', 'antigravity', 'grok'])
+const upstreamSyncPlatforms = new Set(['anthropic', 'gemini', 'antigravity', ...OPENAI_COMPATIBLE_PLATFORM_VALUES])
 const canSyncUpstream = computed(() => {
   if (props.accountId) {
     if (normalizedPlatforms.value.length === 0) return true
