@@ -184,14 +184,14 @@ func TestGroupHandlerEndpoints(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "gpt-5.5")
 
-	body, _ := json.Marshal(map[string]any{"name": "new", "platform": "anthropic", "subscription_type": "standard"})
+	body, _ := json.Marshal(map[string]any{"name": "new", "platform": "zhipu", "subscription_type": "standard"})
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/admin/groups", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 
-	body, _ = json.Marshal(map[string]any{"name": "update"})
+	body, _ = json.Marshal(map[string]any{"name": "update", "platform": "zhipu"})
 	rec = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodPut, "/api/v1/admin/groups/2", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
