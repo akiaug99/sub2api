@@ -1497,6 +1497,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.PoolMonitor.SharedSecret = strings.TrimSpace(cfg.PoolMonitor.SharedSecret)
 	cfg.PoolMonitor.IntegratedExchangeURL = strings.TrimSpace(cfg.PoolMonitor.IntegratedExchangeURL)
 	cfg.PoolMonitor.StandaloneExchangeURL = strings.TrimSpace(cfg.PoolMonitor.StandaloneExchangeURL)
+	cfg.Security.CSP.Policy = addPoolMonitorFormAction(cfg.Security.CSP.Policy, cfg.PoolMonitor)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
 	cfg.LinuxDo.ClientSecret = strings.TrimSpace(cfg.LinuxDo.ClientSecret)
 	cfg.LinuxDo.AuthorizeURL = strings.TrimSpace(cfg.LinuxDo.AuthorizeURL)
@@ -3046,6 +3047,38 @@ func validatePoolMonitorConfig(cfg PoolMonitorConfig) error {
 		}
 	}
 	return nil
+}
+
+func addPoolMonitorFormAction(policy string, cfg PoolMonitorConfig) string {
+	if !cfg.Enabled {
+		return policy
+	}
+	origins := make([]string, 0, 2)
+	seen := make(map[string]struct{})
+	for _, rawURL := range []string{cfg.IntegratedExchangeURL, cfg.StandaloneExchangeURL} {
+		parsed, err := url.Parse(strings.TrimSpace(rawURL))
+		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+			continue
+		}
+		origin := parsed.Scheme + "://" + parsed.Host
+		if _, exists := seen[origin]; exists {
+			continue
+		}
+		seen[origin] = struct{}{}
+		origins = append(origins, origin)
+	}
+	if len(origins) == 0 {
+		return policy
+	}
+	addition := strings.Join(origins, " ")
+	if strings.Contains(policy, "form-action 'self'") {
+		return strings.Replace(policy, "form-action 'self'", "form-action 'self' "+addition, 1)
+	}
+	policy = strings.TrimSpace(policy)
+	if policy != "" && !strings.HasSuffix(policy, ";") {
+		policy += ";"
+	}
+	return policy + " form-action 'self' " + addition
 }
 
 func normalizeStringSlice(values []string) []string {
