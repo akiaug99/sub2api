@@ -4,7 +4,7 @@
       <header class="overflow-hidden rounded-2xl border border-slate-200 bg-slate-950 text-white shadow-xl dark:border-dark-700">
         <div class="relative grid gap-8 px-6 py-8 lg:grid-cols-[1fr_300px] lg:px-10 lg:py-10">
           <div class="relative z-10">
-            <p class="font-mono text-xs font-semibold tracking-[0.22em] text-blue-300">POOL OBSERVATORY / SSO HANDOFF</p>
+            <p class="font-mono text-xs font-semibold tracking-[0.22em] text-blue-300">号池监控 / 安全跳转</p>
             <h1 class="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">号池监控</h1>
             <p class="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
               使用当前 Sub2API 管理员身份签发一次性票据，进入独立号池管理台。票据通过 POST 提交，不会出现在地址栏或浏览器历史中。
@@ -35,7 +35,7 @@
       <section class="grid gap-5 lg:grid-cols-2">
         <article class="group rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-dark-700 dark:bg-dark-800">
           <div class="flex items-start justify-between gap-5">
-            <div><span class="font-mono text-xs tracking-widest text-primary-600">01 / INTEGRATED</span><h2 class="mt-3 text-xl font-semibold text-gray-900 dark:text-white">集成管理页</h2></div>
+            <div><span class="font-mono text-xs tracking-widest text-primary-600">01 / 集成入口</span><h2 class="mt-3 text-xl font-semibold text-gray-900 dark:text-white">集成管理页</h2></div>
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-primary-50 text-xl text-primary-700 dark:bg-primary-950/40 dark:text-primary-300">↗</span>
           </div>
           <p class="mt-4 min-h-12 text-sm leading-6 text-gray-500 dark:text-gray-400">通过 Sub2API 域名下的 <code>/pool-admin</code> 路由进入，适合统一管理入口。</p>
@@ -46,7 +46,7 @@
 
         <article class="group rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-dark-700 dark:bg-dark-800">
           <div class="flex items-start justify-between gap-5">
-            <div><span class="font-mono text-xs tracking-widest text-orange-600">02 / STANDALONE</span><h2 class="mt-3 text-xl font-semibold text-gray-900 dark:text-white">独立管理页</h2></div>
+            <div><span class="font-mono text-xs tracking-widest text-orange-600">02 / 独立入口</span><h2 class="mt-3 text-xl font-semibold text-gray-900 dark:text-white">独立管理页</h2></div>
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-orange-50 text-xl text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">◇</span>
           </div>
           <p class="mt-4 min-h-12 text-sm leading-6 text-gray-500 dark:text-gray-400">进入独立域名的管理地址。该域名使用自己的会话 Cookie，不与 Sub2API 域名共享。</p>

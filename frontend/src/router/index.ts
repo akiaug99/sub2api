@@ -422,7 +422,7 @@ const routes: RouteRecordRaw[] = [
     meta: {
       requiresAuth: true,
       requiresAdmin: true,
-      title: 'Pool Monitor'
+      title: '号池监控'
     }
   },
   {
