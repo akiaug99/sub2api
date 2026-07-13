@@ -18,7 +18,7 @@ func TestPoolMonitorSnapshotOmitsSensitiveAccountFields(t *testing.T) {
 	account := Account{
 		ID: 9, Name: "private@example.invalid", Platform: "openai", Type: "oauth",
 		Credentials: map[string]any{"access_token": "SENSITIVE_VALUE_FIXTURE", "plan_type": "k12"},
-		Extra:       map[string]any{"proxy_url": "http://proxy.invalid"},
+		Extra:       map[string]any{"proxy_url": "http://proxy.invalid", "codex_5h_window_minutes": 300},
 		Status:      StatusActive, Schedulable: true,
 		Groups: []*Group{{ID: 3, Name: "primary", Platform: "openai"}},
 	}
@@ -35,6 +35,37 @@ func TestPoolMonitorSnapshotOmitsSensitiveAccountFields(t *testing.T) {
 	require.Equal(t, "k12", item.Plan)
 	require.Equal(t, []string{"primary"}, item.Groups)
 	require.Len(t, item.QuotaWindows, 1)
+}
+
+func TestPoolMonitorAccountHidesUnconfirmedOpenAIWindows(t *testing.T) {
+	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	usage := &UsageInfo{
+		FiveHour: &UsageProgress{Utilization: 0},
+		SevenDay: &UsageProgress{Utilization: 100},
+	}
+	for _, tc := range []struct {
+		name  string
+		extra map[string]any
+	}{
+		{name: "missing window lengths"},
+		{name: "zero and noncanonical window lengths", extra: map[string]any{
+			"codex_5h_window_minutes": 0,
+			"codex_7d_window_minutes": 43200,
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			account := Account{
+				ID: 10, Name: "free", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+				Credentials: map[string]any{"plan_type": "free"}, Extra: tc.extra,
+				Status: StatusActive, Schedulable: true,
+			}
+
+			item := mapPoolMonitorAccount(account, usage, now)
+
+			require.Empty(t, item.QuotaWindows)
+			require.True(t, item.Limited, "hidden exhausted windows must still keep the account limited")
+		})
+	}
 }
 
 func TestPoolMonitorSnapshotUsesCredentialAndParentPlanTypes(t *testing.T) {
