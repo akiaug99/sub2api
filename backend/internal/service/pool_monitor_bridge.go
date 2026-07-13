@@ -228,7 +228,8 @@ func mapPoolMonitorAccount(account Account, usage *UsageInfo, now time.Time) Poo
 			if progress == nil {
 				return
 			}
-			window := PoolMonitorQuotaWindow{Name: name, ResetAt: progress.ResetsAt}
+			windowName, confirmed := poolMonitorQuotaWindowName(account, name)
+			window := PoolMonitorQuotaWindow{Name: windowName, ResetAt: progress.ResetsAt}
 			if progress.LimitRequests > 0 {
 				window.Used = float64(progress.UsedRequests)
 				window.Limit = float64(progress.LimitRequests)
@@ -241,7 +242,7 @@ func mapPoolMonitorAccount(account Account, usage *UsageInfo, now time.Time) Poo
 			if window.Remaining <= 0 {
 				item.Limited = true
 			}
-			if !poolMonitorQuotaWindowConfirmed(account, name) {
+			if !confirmed {
 				return
 			}
 			item.QuotaWindows = append(item.QuotaWindows, window)
@@ -272,17 +273,24 @@ func mapPoolMonitorAccount(account Account, usage *UsageInfo, now time.Time) Poo
 	return item
 }
 
-func poolMonitorQuotaWindowConfirmed(account Account, name string) bool {
+func poolMonitorQuotaWindowName(account Account, name string) (string, bool) {
 	if account.Platform != PlatformOpenAI {
-		return true
+		return name, true
 	}
 	switch name {
 	case "5h":
-		return parseExtraInt(account.Extra["codex_5h_window_minutes"]) == 5*60
+		if parseExtraInt(account.Extra["codex_5h_window_minutes"]) != 5*60 {
+			return "", false
+		}
+		return name, true
 	case "7d":
-		return parseExtraInt(account.Extra["codex_7d_window_minutes"]) == 7*24*60
+		minutes := parseExtraInt(account.Extra["codex_7d_window_minutes"])
+		if minutes < 24*60 || minutes%(24*60) != 0 {
+			return "", false
+		}
+		return fmt.Sprintf("%dd", minutes/(24*60)), true
 	default:
-		return true
+		return name, true
 	}
 }
 

@@ -37,33 +37,56 @@ func TestPoolMonitorSnapshotOmitsSensitiveAccountFields(t *testing.T) {
 	require.Len(t, item.QuotaWindows, 1)
 }
 
-func TestPoolMonitorAccountHidesUnconfirmedOpenAIWindows(t *testing.T) {
+func TestPoolMonitorAccountHidesOpenAIWindowsWithoutLengths(t *testing.T) {
 	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
 	usage := &UsageInfo{
 		FiveHour: &UsageProgress{Utilization: 0},
 		SevenDay: &UsageProgress{Utilization: 100},
 	}
+	account := Account{
+		ID: 10, Name: "free", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Credentials: map[string]any{"plan_type": "free"},
+		Status:      StatusActive, Schedulable: true,
+	}
+
+	item := mapPoolMonitorAccount(account, usage, now)
+
+	require.Empty(t, item.QuotaWindows)
+	require.True(t, item.Limited, "hidden exhausted windows must still keep the account limited")
+}
+
+func TestPoolMonitorAccountLabelsOpenAILongWindowsByActualPeriod(t *testing.T) {
+	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	resetAt := now.Add(25 * 24 * time.Hour)
 	for _, tc := range []struct {
-		name  string
-		extra map[string]any
+		name       string
+		minutes    int
+		windowName string
 	}{
-		{name: "missing window lengths"},
-		{name: "zero and noncanonical window lengths", extra: map[string]any{
-			"codex_5h_window_minutes": 0,
-			"codex_7d_window_minutes": 43200,
-		}},
+		{name: "seven days", minutes: 7 * 24 * 60, windowName: "7d"},
+		{name: "thirty days", minutes: 30 * 24 * 60, windowName: "30d"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			account := Account{
 				ID: 10, Name: "free", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
-				Credentials: map[string]any{"plan_type": "free"}, Extra: tc.extra,
+				Credentials: map[string]any{"plan_type": "free"},
+				Extra: map[string]any{
+					"codex_5h_window_minutes": 0,
+					"codex_7d_window_minutes": tc.minutes,
+				},
 				Status: StatusActive, Schedulable: true,
+			}
+			usage := &UsageInfo{
+				FiveHour: &UsageProgress{Utilization: 0},
+				SevenDay: &UsageProgress{Utilization: 100, ResetsAt: &resetAt},
 			}
 
 			item := mapPoolMonitorAccount(account, usage, now)
 
-			require.Empty(t, item.QuotaWindows)
-			require.True(t, item.Limited, "hidden exhausted windows must still keep the account limited")
+			require.Len(t, item.QuotaWindows, 1)
+			require.Equal(t, tc.windowName, item.QuotaWindows[0].Name)
+			require.Equal(t, &resetAt, item.QuotaWindows[0].ResetAt)
+			require.True(t, item.Limited)
 		})
 	}
 }
