@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -94,6 +95,14 @@ type Config struct {
 	Update                  UpdateConfig                  `mapstructure:"update"`
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
+	PoolMonitor             PoolMonitorConfig             `mapstructure:"pool_monitor"`
+}
+
+type PoolMonitorConfig struct {
+	Enabled               bool   `mapstructure:"enabled"`
+	SharedSecret          string `mapstructure:"shared_secret"`
+	IntegratedExchangeURL string `mapstructure:"integrated_exchange_url"`
+	StandaloneExchangeURL string `mapstructure:"standalone_exchange_url"`
 }
 
 type LogConfig struct {
@@ -1485,6 +1494,9 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	}
 	cfg.Server.FrontendURL = strings.TrimSpace(cfg.Server.FrontendURL)
 	cfg.JWT.Secret = strings.TrimSpace(cfg.JWT.Secret)
+	cfg.PoolMonitor.SharedSecret = strings.TrimSpace(cfg.PoolMonitor.SharedSecret)
+	cfg.PoolMonitor.IntegratedExchangeURL = strings.TrimSpace(cfg.PoolMonitor.IntegratedExchangeURL)
+	cfg.PoolMonitor.StandaloneExchangeURL = strings.TrimSpace(cfg.PoolMonitor.StandaloneExchangeURL)
 	cfg.LinuxDo.ClientID = strings.TrimSpace(cfg.LinuxDo.ClientID)
 	cfg.LinuxDo.ClientSecret = strings.TrimSpace(cfg.LinuxDo.ClientSecret)
 	cfg.LinuxDo.AuthorizeURL = strings.TrimSpace(cfg.LinuxDo.AuthorizeURL)
@@ -1603,6 +1615,10 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 
 func setDefaults() {
 	viper.SetDefault("run_mode", RunModeStandard)
+	viper.SetDefault("pool_monitor.enabled", false)
+	viper.SetDefault("pool_monitor.shared_secret", "")
+	viper.SetDefault("pool_monitor.integrated_exchange_url", "")
+	viper.SetDefault("pool_monitor.standalone_exchange_url", "")
 
 	// Server
 	viper.SetDefault("server.host", "0.0.0.0")
@@ -2106,6 +2122,9 @@ func (c *Config) Validate() error {
 	// 选择 bytes 而不是 rune 计数，确保二进制/随机串的长度语义更接近“熵”而非“字符数”。
 	if len([]byte(jwtSecret)) < 32 {
 		return fmt.Errorf("jwt.secret must be at least 32 bytes")
+	}
+	if err := validatePoolMonitorConfig(c.PoolMonitor); err != nil {
+		return err
 	}
 	switch c.Log.Level {
 	case "debug", "info", "warn", "error":
@@ -2995,6 +3014,36 @@ func (c *Config) Validate() error {
 	}
 	if err := ValidateDingTalkConfig(c.DingTalk); err != nil {
 		return fmt.Errorf("dingtalk_connect: %w", err)
+	}
+	return nil
+}
+
+func validatePoolMonitorConfig(cfg PoolMonitorConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if len([]byte(strings.TrimSpace(cfg.SharedSecret))) < 32 {
+		return fmt.Errorf("pool_monitor.shared_secret must be at least 32 bytes")
+	}
+	for name, rawURL := range map[string]string{
+		"integrated_exchange_url": cfg.IntegratedExchangeURL,
+		"standalone_exchange_url": cfg.StandaloneExchangeURL,
+	} {
+		parsed, err := url.ParseRequestURI(strings.TrimSpace(rawURL))
+		if err != nil || parsed.IsAbs() == false || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+			return fmt.Errorf("pool_monitor.%s must be an absolute exchange URL", name)
+		}
+		host := parsed.Hostname()
+		isLoopback := strings.EqualFold(host, "localhost")
+		if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+			isLoopback = true
+		}
+		if parsed.Scheme != "https" && !(parsed.Scheme == "http" && isLoopback) {
+			return fmt.Errorf("pool_monitor.%s must use https except for loopback development", name)
+		}
+		if !strings.HasSuffix(parsed.Path, "/api/admin/v1/auth/exchange") {
+			return fmt.Errorf("pool_monitor.%s must target /api/admin/v1/auth/exchange", name)
+		}
 	}
 	return nil
 }

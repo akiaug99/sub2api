@@ -22,6 +22,7 @@ func RegisterAdminRoutes(
 	{
 		// 部署与运营合规确认
 		registerAdminComplianceRoutes(admin, h)
+		admin.POST("/pool-monitor/sso-ticket", h.Admin.PoolMonitor.CreateSSOTicket)
 
 		// 仪表盘
 		registerDashboardRoutes(admin, h)

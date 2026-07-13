@@ -574,6 +574,7 @@ var ProviderSet = wire.NewSet(
 	ProvideBillingCacheService,
 	NewAnnouncementService,
 	NewAdminService,
+	NewPoolMonitorBridge,
 	NewGatewayService,
 	NewOpenAIGatewayService,
 	ProvideBatchImageModelPricingResolver,
