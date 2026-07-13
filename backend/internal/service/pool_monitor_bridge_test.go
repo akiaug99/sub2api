@@ -17,12 +17,12 @@ func TestPoolMonitorSnapshotOmitsSensitiveAccountFields(t *testing.T) {
 	resetAt := now.Add(5 * time.Hour)
 	account := Account{
 		ID: 9, Name: "private@example.invalid", Platform: "openai", Type: "oauth",
-		Credentials: map[string]any{"access_token": "SENSITIVE_VALUE_FIXTURE"},
+		Credentials: map[string]any{"access_token": "SENSITIVE_VALUE_FIXTURE", "plan_type": "k12"},
 		Extra:       map[string]any{"proxy_url": "http://proxy.invalid"},
 		Status:      StatusActive, Schedulable: true,
 		Groups: []*Group{{ID: 3, Name: "primary", Platform: "openai"}},
 	}
-	usage := &UsageInfo{FiveHour: &UsageProgress{Utilization: 20, ResetsAt: &resetAt}}
+	usage := &UsageInfo{SubscriptionTier: "plus", FiveHour: &UsageProgress{Utilization: 20, ResetsAt: &resetAt}}
 
 	item := mapPoolMonitorAccount(account, usage, now)
 	raw, err := json.Marshal(item)
@@ -32,8 +32,40 @@ func TestPoolMonitorSnapshotOmitsSensitiveAccountFields(t *testing.T) {
 		require.NotContains(t, text, forbidden)
 	}
 	require.Equal(t, "p***@e***.invalid", item.MaskedLabel)
+	require.Equal(t, "k12", item.Plan)
 	require.Equal(t, []string{"primary"}, item.Groups)
 	require.Len(t, item.QuotaWindows, 1)
+}
+
+func TestPoolMonitorSnapshotUsesCredentialAndParentPlanTypes(t *testing.T) {
+	now := time.Date(2026, 7, 13, 10, 0, 0, 0, time.UTC)
+	parentID := int64(1)
+	accounts := []Account{
+		{ID: parentID, Name: "pro", Platform: "openai", Type: "oauth", Credentials: map[string]any{"plan_type": "pro"}, Status: StatusActive, Schedulable: true},
+		{ID: 2, Name: "shadow", Platform: "openai", Type: "oauth", ParentAccountID: &parentID, Status: StatusActive, Schedulable: true},
+		{ID: 3, Name: "free", Platform: "openai", Type: "oauth", Credentials: map[string]any{"plan_type": "free"}, Status: StatusActive, Schedulable: true},
+		{ID: 4, Name: "plus", Platform: "openai", Type: "oauth", Credentials: map[string]any{"plan_type": "plus"}, Status: StatusActive, Schedulable: true},
+	}
+	bridge := newPoolMonitorBridgeForTest(&config.Config{PoolMonitor: config.PoolMonitorConfig{Enabled: true}}, func() time.Time { return now },
+		func(_ context.Context, _, pageSize int) ([]Account, int64, error) {
+			require.Equal(t, 500, pageSize)
+			return accounts, int64(len(accounts)), nil
+		},
+		func(_ context.Context, accountID int64, _ bool) (*UsageInfo, error) {
+			if accountID == 2 {
+				return &UsageInfo{SubscriptionTier: "stale-tier"}, nil
+			}
+			return &UsageInfo{}, nil
+		})
+
+	snapshot, err := bridge.Snapshot(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, []string{"pro", "pro", "free", "plus"}, []string{
+		snapshot.Accounts[0].Plan,
+		snapshot.Accounts[1].Plan,
+		snapshot.Accounts[2].Plan,
+		snapshot.Accounts[3].Plan,
+	})
 }
 
 func TestPoolMonitorBridgePaginatesAccountsAndUsesPassiveUsage(t *testing.T) {

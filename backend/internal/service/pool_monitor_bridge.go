@@ -141,9 +141,20 @@ func (b *PoolMonitorBridge) Snapshot(ctx context.Context) (PoolMonitorSnapshot, 
 	}
 
 	now := b.now().UTC()
+	credentialPlans := make(map[int64]string, len(accounts))
+	for _, account := range accounts {
+		if plan := strings.TrimSpace(account.GetCredential("plan_type")); plan != "" {
+			credentialPlans[account.ID] = plan
+		}
+	}
 	result := PoolMonitorSnapshot{GeneratedAt: now, Accounts: make([]PoolMonitorAccount, len(accounts))}
 	for index, account := range accounts {
 		result.Accounts[index] = mapPoolMonitorAccount(account, usages[index], now)
+		if strings.TrimSpace(account.GetCredential("plan_type")) == "" && account.ParentAccountID != nil {
+			if parentPlan := credentialPlans[*account.ParentAccountID]; parentPlan != "" {
+				result.Accounts[index].Plan = parentPlan
+			}
+		}
 		if usageErrors[index] {
 			result.Accounts[index].ErrorCategory = "usage_failed"
 		}
@@ -200,14 +211,17 @@ func mapPoolMonitorAccount(account Account, usage *UsageInfo, now time.Time) Poo
 	item := PoolMonitorAccount{
 		ID: fmt.Sprintf("%d", account.ID), MaskedLabel: maskPoolMonitorLabel(account.Name),
 		Platform: account.Platform, Type: account.Type, Status: account.Status, Schedulable: account.Schedulable,
-		Groups: groups, TokenExpiresAt: account.ExpiresAt, QuotaWindows: make([]PoolMonitorQuotaWindow, 0),
+		Plan: strings.TrimSpace(account.GetCredential("plan_type")), Groups: groups,
+		TokenExpiresAt: account.ExpiresAt, QuotaWindows: make([]PoolMonitorQuotaWindow, 0),
 	}
 	if account.ExpiresAt != nil && !account.ExpiresAt.After(now) {
 		item.Status = "expired"
 	}
 	item.Limited = activeAt(account.RateLimitResetAt, now) || activeAt(account.OverloadUntil, now) || activeAt(account.TempUnschedulableUntil, now)
 	if usage != nil {
-		item.Plan = strings.TrimSpace(usage.SubscriptionTier)
+		if item.Plan == "" {
+			item.Plan = strings.TrimSpace(usage.SubscriptionTier)
+		}
 		item.NoAccess = usage.NeedsReauth || usage.IsForbidden || usage.IsBanned
 		item.ErrorCategory = allowPoolMonitorErrorCategory(usage.ErrorCode)
 		appendUsageWindow := func(name string, progress *UsageProgress) {
