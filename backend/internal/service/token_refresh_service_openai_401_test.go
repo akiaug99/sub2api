@@ -38,7 +38,7 @@ func TestTokenRefreshService_RefreshWithRetry_OpenAI401TempUnschedulableOneDay(t
 	after := time.Now()
 
 	require.Error(t, err)
-	require.Equal(t, 1, refresher.refreshCalls, "401 refresh failure should not retry")
+	require.Equal(t, 1, refresher.calls, "401 refresh failure should not retry")
 	require.Equal(t, 1, repo.setTempUnschedCalls, "401 refresh failure should set temp unschedulable")
 	require.Equal(t, 0, repo.setErrorCalls, "401 refresh failure should not permanently mark error on first hit")
 	require.Equal(t, 0, repo.updateCalls)
@@ -69,18 +69,33 @@ func TestTokenRefreshService_ProcessRefresh_SkipsUnauthorizedCooldownAccounts(t 
 		err: errors.New("should not be called"),
 	}
 	service := &TokenRefreshService{
-		accountRepo:   repo,
-		refreshers:    []TokenRefresher{refresher},
-		executors:     []OAuthRefreshExecutor{refresher},
+		accountRepo: repo,
+		registrations: []tokenRefreshRegistration{{
+			platform:  PlatformOpenAI,
+			refresher: refresher,
+			executor:  refresher,
+		}},
 		refreshPolicy: DefaultBackgroundRefreshPolicy(),
 		cfg: &config.TokenRefreshConfig{
-			MaxRetries:          1,
-			RetryBackoffSeconds: 0,
+			MaxRetries: 1,
 		},
 	}
 
-	service.processRefresh()
-	require.Equal(t, 0, refresher.refreshCalls, "accounts in active unauthorized cooldown should be skipped by background refresh")
+	stats := service.processCandidatePage(
+		context.Background(),
+		[]Account{account},
+		map[string]*tokenRefreshProviderState{
+			PlatformOpenAI: {
+				service:      service,
+				registration: service.registrations[0],
+			},
+		},
+		time.Hour,
+	)
+
+	require.Equal(t, 0, refresher.calls, "accounts in active unauthorized cooldown should be skipped by background refresh")
+	require.Equal(t, 1, stats.skipped)
+	require.Equal(t, 0, stats.needsRefresh)
 	require.Equal(t, 0, repo.setTempUnschedCalls)
 	require.Equal(t, 0, repo.setErrorCalls)
 }
