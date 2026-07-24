@@ -100,6 +100,14 @@ services:
       - SETUP_MIGRATION_TIMEOUT_SECONDS=${SETUP_MIGRATION_TIMEOUT_SECONDS:-0}
 
       # =======================================================================
+      # Account Pool Monitor (optional)
+      # =======================================================================
+      - POOL_MONITOR_ENABLED=${POOL_MONITOR_ENABLED:-false}
+      - POOL_MONITOR_SHARED_SECRET=${POOL_MONITOR_SHARED_SECRET:-}
+      - POOL_MONITOR_INTEGRATED_EXCHANGE_URL=${POOL_MONITOR_INTEGRATED_EXCHANGE_URL:-}
+      - POOL_MONITOR_STANDALONE_EXCHANGE_URL=${POOL_MONITOR_STANDALONE_EXCHANGE_URL:-}
+
+      # =======================================================================
       # TOTP (2FA) Configuration
       # =======================================================================
       # IMPORTANT: Set a fixed encryption key for TOTP secrets. If left empty,

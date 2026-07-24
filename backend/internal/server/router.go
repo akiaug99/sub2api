@@ -116,6 +116,11 @@ func registerRoutes(
 
 	// API v1
 	v1 := r.Group("/api/v1")
+	if cfg.PoolMonitor.Enabled {
+		poolMonitor := v1.Group("/internal/pool-monitor")
+		poolMonitor.Use(middleware2.NewPoolMonitorHMACMiddleware(cfg.PoolMonitor.SharedSecret, time.Now))
+		poolMonitor.GET("/accounts", h.Admin.PoolMonitor.Accounts)
+	}
 
 	// 注册各模块路由
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService)

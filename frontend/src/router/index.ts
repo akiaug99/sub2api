@@ -428,6 +428,16 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/admin/pool-monitor',
+    name: 'AdminPoolMonitor',
+    component: () => import('@/views/admin/PoolMonitorLaunchView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: '号池监控'
+    }
+  },
+  {
     path: '/admin/users',
     name: 'AdminUsers',
     component: () => import('@/views/admin/UsersView.vue'),

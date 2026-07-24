@@ -53,3 +53,16 @@ describe('AppSidebar header styles', () => {
     expect(sidebarBrandBlockMatch?.[0]).not.toContain('overflow: hidden;')
   })
 })
+
+describe('AppSidebar pool monitor navigation', () => {
+  it('adds pool monitor only to the administrator navigation declaration', () => {
+    const adminStart = componentSource.indexOf('const adminNavItems')
+    const adminEnd = componentSource.indexOf('function toggleSidebar', adminStart)
+    const selfStart = componentSource.indexOf('function buildSelfNavItems')
+    const selfEnd = componentSource.indexOf('function finalizeNav', selfStart)
+
+    expect(componentSource.slice(adminStart, adminEnd)).toContain("path: '/admin/pool-monitor'")
+    expect(componentSource.slice(adminStart, adminEnd)).toContain("t('nav.poolMonitor')")
+    expect(componentSource.slice(selfStart, selfEnd)).not.toContain('/admin/pool-monitor')
+  })
+})
