@@ -36,6 +36,7 @@ const (
 	PlatformBaichuan    = "baichuan"
 	PlatformStepFun     = "stepfun"
 	PlatformSenseTime   = "sensetime"
+	PlatformComposite   = "composite"
 )
 
 // Account type constants

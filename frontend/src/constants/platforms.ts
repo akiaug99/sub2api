@@ -21,6 +21,13 @@ export const PLATFORM_OPTIONS = [
 
 export type PlatformId = (typeof PLATFORM_OPTIONS)[number]['value']
 
+export const GROUP_PLATFORM_OPTIONS = [
+  ...PLATFORM_OPTIONS,
+  { value: 'composite', label: 'Composite', color: 'cyan', defaultBaseUrl: '' },
+] as const
+
+export type GroupPlatformId = (typeof GROUP_PLATFORM_OPTIONS)[number]['value']
+
 export const PLATFORM_VALUES = PLATFORM_OPTIONS.map((p) => p.value) as PlatformId[]
 
 export const OPENAI_COMPATIBLE_PLATFORM_VALUES = [
@@ -46,11 +53,11 @@ export function isOpenAICompatiblePlatform(platform: string): boolean {
 }
 
 export function getPlatformLabel(platform: string): string {
-  return PLATFORM_OPTIONS.find((p) => p.value === platform)?.label || platform
+  return GROUP_PLATFORM_OPTIONS.find((p) => p.value === platform)?.label || platform
 }
 
 export function getPlatformDefaultBaseUrl(platform: string): string {
-  return PLATFORM_OPTIONS.find((p) => p.value === platform)?.defaultBaseUrl || ''
+  return GROUP_PLATFORM_OPTIONS.find((p) => p.value === platform)?.defaultBaseUrl || ''
 }
 
 const colorClasses: Record<string, string> = {
@@ -74,6 +81,6 @@ const colorClasses: Record<string, string> = {
 }
 
 export function getPlatformBadgeClass(platform: string): string {
-  const color = PLATFORM_OPTIONS.find((p) => p.value === platform)?.color || 'slate'
+  const color = GROUP_PLATFORM_OPTIONS.find((p) => p.value === platform)?.color || 'slate'
   return colorClasses[color] || colorClasses.slate
 }
